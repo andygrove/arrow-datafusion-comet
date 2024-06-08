@@ -61,7 +61,17 @@ pub fn copy_array(array: &dyn Array) -> ArrayRef {
 
     let mut mutable = MutableArrayData::new(vec![&data], false, capacity);
 
+    println!(
+        "copy_array(type{}, len={}) before mutable.extend(0, 0, {capacity})",
+        array.data_type(),
+        array.len()
+    );
     mutable.extend(0, 0, capacity);
+    println!(
+        "copy_array(type{}, len={}) after mutable.extend(0, 0, {capacity})",
+        array.data_type(),
+        array.len()
+    );
 
     if matches!(array.data_type(), DataType::Dictionary(_, _)) {
         let copied_dict = make_array(mutable.freeze());
@@ -92,6 +102,11 @@ pub fn copy_array(array: &dyn Array) -> ArrayRef {
 /// (i.e., unpack the dictionary array) and copy the primitive array. If the input
 /// array is a primitive array, we simply copy the array.
 pub fn copy_or_cast_array(array: &dyn Array) -> Result<ArrayRef, ArrowError> {
+    println!(
+        "copy_or_cast_array() len={}, type={}",
+        array.len(),
+        array.data_type()
+    );
     match array.data_type() {
         DataType::Dictionary(_, value_type) => {
             let options = CastOptions::default();

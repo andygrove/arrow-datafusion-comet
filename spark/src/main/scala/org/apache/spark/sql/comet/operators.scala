@@ -217,6 +217,10 @@ abstract class CometNativeExec extends CometExec {
           val it =
             new CometExecIterator(CometExec.newIterId, inputs, serializedPlanCopy, nativeMetrics)
 
+          // scalastyle:off println
+          println(s"${getClass.getSimpleName}.doExecuteColumnar id=${it.id}, plan=${it.plan}")
+          // scalastyle:on println
+
           setSubqueries(it.id, originalPlan)
 
           Option(TaskContext.get()).foreach { context =>

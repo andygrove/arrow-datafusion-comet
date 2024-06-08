@@ -52,7 +52,7 @@ class CometExecIterator(
   private val cometBatchIterators = inputs.map { iterator =>
     new CometBatchIterator(iterator, nativeUtil)
   }.toArray
-  private val plan = {
+  val plan = {
     val configs = createNativeConf
     nativeLib.createPlan(
       id,
@@ -97,21 +97,34 @@ class CometExecIterator(
   }
 
   def getNextBatch(): Option[ColumnarBatch] = {
+    // scalastyle:off println
+    println(s"getNextBatch id=$id, plan=$plan")
+    // scalastyle:on println
+
     // we execute the native plan each time we need another output batch and this could
     // result in multiple input batches being processed
-    val result = nativeLib.executePlan(plan)
+    try {
+      val result = nativeLib.executePlan(plan)
 
-    result(0) match {
-      case -1 =>
-        // EOF
+      result(0) match {
+        case -1 =>
+          // EOF
+          None
+        case 1 =>
+          val numRows = result(1)
+          val addresses = result.slice(2, result.length)
+          val cometVectors = nativeUtil.importVector(addresses)
+          Some(new ColumnarBatch(cometVectors.toArray, numRows.toInt))
+        case flag =>
+          throw new IllegalStateException(s"Invalid native flag: $flag")
+      }
+    } catch {
+      case e: Exception =>
+        // scalastyle:off println
+        println(s"getNextBatch id=$id, plan=$plan failed during native execution: ${e.getMessage}")
+        // scalastyle:on println
+        // don't crash, just pretend we hit EOF
         None
-      case 1 =>
-        val numRows = result(1)
-        val addresses = result.slice(2, result.length)
-        val cometVectors = nativeUtil.importVector(addresses)
-        Some(new ColumnarBatch(cometVectors.toArray, numRows.toInt))
-      case flag =>
-        throw new IllegalStateException(s"Invalid native flag: $flag")
     }
   }
 

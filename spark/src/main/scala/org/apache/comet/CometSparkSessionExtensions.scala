@@ -736,6 +736,10 @@ class CometSparkSessionExtensions
       } else {
         var newPlan = transform(plan)
 
+        // scalastyle:off println
+        println(newPlan)
+        // scalastyle:on println
+
         // if the plan cannot be run fully natively then explain why (when appropriate
         // config is enabled)
         if (CometConf.COMET_EXPLAIN_FALLBACK_ENABLED.get()) {
