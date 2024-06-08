@@ -52,7 +52,7 @@ class CometExecIterator(
   private val cometBatchIterators = inputs.map { iterator =>
     new CometBatchIterator(iterator, nativeUtil)
   }.toArray
-  val plan = {
+  val plan: Long = {
     val configs = createNativeConf
     nativeLib.createPlan(
       id,
@@ -121,7 +121,8 @@ class CometExecIterator(
     } catch {
       case e: Exception =>
         // scalastyle:off println
-        println(s"getNextBatch id=$id, plan=$plan failed during native execution: ${e.getMessage}")
+        println(
+          s"getNextBatch id=$id, plan=$plan failed during native execution: ${e.getMessage}")
         // scalastyle:on println
         // don't crash, just pretend we hit EOF
         None
