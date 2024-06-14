@@ -576,40 +576,67 @@ class CometSparkSessionExtensions
         // broadcast exchange is forced to be enabled by Comet config.
         // Note that `CometBroadcastExchangeExec` is only supported for Spark 3.4+.
         case plan if plan.children.exists(_.isInstanceOf[BroadcastExchangeExec]) =>
+
+          /*
+          found plan BroadcastHashJoin with child of BroadcastExchangeExec
+          other: CometFilter
+          BroadcastExchangeExec with native child
+          newChildren does not contain BroadcastExchangeExec
+
+           */
+
+          // scalastyle:off println
+          println(s"found plan ${plan.nodeName} with child of BroadcastExchangeExec")
+
           val newChildren = plan.children.map {
             case b: BroadcastExchangeExec
                 if isCometNative(b.child) &&
                   isCometOperatorEnabled(conf, "broadcastExchangeExec") &&
                   isSpark34Plus => // Spark 3.4+ only
+              println("BroadcastExchangeExec with native child")
+
               QueryPlanSerde.operator2Proto(b) match {
                 case Some(nativeOp) =>
                   val cometOp = CometBroadcastExchangeExec(b, b.child)
                   CometSinkPlaceHolder(nativeOp, b, cometOp)
-                case None => b
+                case None =>
+                  println("failed to convert")
+                  b
               }
-            case other => other
+            case other =>
+              println("other: " + other.nodeName)
+              other
           }
+
           if (!newChildren.exists(_.isInstanceOf[BroadcastExchangeExec])) {
+            println("newChildren does not contain BroadcastExchangeExec")
             val newPlan = apply(plan.withNewChildren(newChildren))
             if (isCometNative(newPlan) || isCometBroadCastForceEnabled(conf)) {
+              println("new plan is native")
               newPlan
             } else {
               if (!isCometOperatorEnabled(
                   conf,
                   "broadcastExchangeExec") && !isCometBroadCastForceEnabled(conf)) {
                 withInfo(plan, "Native Broadcast is not enabled")
+              } else {
+                withInfo(plan, "new plan is not native")
+                println("NEW PLAN: " + newPlan)
               }
               plan
             }
           } else {
+            withInfo(plan, "newChildren still contains BroadcastExchangeExec")
             plan
           }
+        // scalastyle:on println
 
         // this case should be checked only after the previous case checking for a
         // child BroadcastExchange has been applied, otherwise that transform
         // never gets applied
-        case op: BroadcastHashJoinExec if !op.children.forall(isCometNative(_)) =>
-          withInfo(op, "BroadcastHashJoin disabled because not all child plans are native")
+        case op: BroadcastHashJoinExec if !op.children.forall(isCometNative) =>
+          val x = op.children.filterNot(isCometNative).map(_.nodeName)
+          withInfo(op, s"BroadcastHashJoin disabled because not all child plans are native: $x")
           op
 
         // For AQE shuffle stage on a Comet shuffle exchange
@@ -704,7 +731,7 @@ class CometSparkSessionExtensions
           op match {
             case _: CometExec | _: CometBroadcastExchangeExec | _: CometShuffleExchangeExec => op
             case o =>
-              withInfo(o, s"${o.nodeName} is not supported")
+              withInfo(o, s"${o.nodeName} is not supported (catch all message)")
               o
           }
       }
@@ -1122,7 +1149,11 @@ object CometSparkSessionExtensions extends Logging {
    */
   def withInfos[T <: TreeNode[_]](node: T, info: Set[String], exprs: T*): T = {
     val exprInfo = exprs.flatMap(_.getTagValue(CometExplainInfo.EXTENSION_INFO)).flatten.toSet
-    node.setTagValue(CometExplainInfo.EXTENSION_INFO, exprInfo ++ info)
+    if (info.isEmpty && exprInfo.isEmpty) {
+      node.setTagValue(CometExplainInfo.EXTENSION_INFO, Set("no reason given"))
+    } else {
+      node.setTagValue(CometExplainInfo.EXTENSION_INFO, exprInfo ++ info)
+    }
     node
   }
 
@@ -1141,7 +1172,7 @@ object CometSparkSessionExtensions extends Logging {
    *   The node with information (if any) attached
    */
   def withInfo[T <: TreeNode[_]](node: T, exprs: T*): T = {
-    withInfos(node, Set.empty, exprs: _*)
+    withInfos(node, Set("no reason provided"), exprs: _*)
   }
 
   // Helper to reduce boilerplate

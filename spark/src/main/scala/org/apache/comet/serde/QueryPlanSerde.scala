@@ -1093,6 +1093,7 @@ object QueryPlanSerde extends Logging with ShimQueryPlanSerde with CometExprShim
                   .build())
             } else {
               withInfo(expr, left, right)
+              withInfo(expr, "bad like")
               None
             }
           } else {
@@ -2147,7 +2148,7 @@ object QueryPlanSerde extends Logging with ShimQueryPlanSerde with CometExprShim
           }
 
         case _ =>
-          withInfo(expr, s"${expr.prettyName} is not supported", expr.children: _*)
+          withInfo(expr, s"${expr.prettyName} is not supported (catch all)", expr.children: _*)
           None
       }
     }
@@ -2289,12 +2290,16 @@ object QueryPlanSerde extends Logging with ShimQueryPlanSerde with CometExprShim
 
       case FilterExec(condition, child) if isCometOperatorEnabled(op.conf, "filter") =>
         val cond = exprToProto(condition, child.output)
+        // scalastyle:off println
+        println("FilterExec cond = " + cond)
+        // scalastyle:on println
 
         if (cond.isDefined && childOp.nonEmpty) {
           val filterBuilder = OperatorOuterClass.Filter.newBuilder().setPredicate(cond.get)
           Some(result.setFilter(filterBuilder).build())
         } else {
           withInfo(op, condition, child)
+          withInfo(op, "filter expression not supported")
           None
         }
 
