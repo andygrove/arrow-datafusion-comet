@@ -405,7 +405,7 @@ object CometConf extends ShimCometConf {
     conf("spark.comet.xxhash64.enabled")
       .doc("The xxhash64 implementation is not optimized yet and may cause performance issues.")
       .booleanConf
-      .createWithDefault(false)
+      .createWithDefault(true)
 
 }
 

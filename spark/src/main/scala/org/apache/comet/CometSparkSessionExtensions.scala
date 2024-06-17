@@ -641,6 +641,7 @@ class CometSparkSessionExtensions
         case s: ShuffleExchangeExec
             if isCometShuffleEnabled(conf) &&
               isCometNativeShuffleMode(conf) &&
+              isCometNative(s.child) &&
               QueryPlanSerde.supportPartitioning(s.child.output, s.outputPartitioning)._1 =>
           logInfo("Comet extension enabled for Native Shuffle")
 
@@ -662,6 +663,7 @@ class CometSparkSessionExtensions
         // convert it to CometColumnarShuffle,
         case s: ShuffleExchangeExec
             if isCometShuffleEnabled(conf) && isCometJVMShuffleMode(conf) &&
+              isCometNative(s.child) &&
               QueryPlanSerde.supportPartitioningTypes(s.child.output)._1 &&
               !isShuffleOperator(s.child) =>
           logInfo("Comet extension enabled for JVM Columnar Shuffle")
@@ -734,6 +736,10 @@ class CometSparkSessionExtensions
         }
       } else {
         var newPlan = transform(plan)
+
+        // scalastyle:off println
+        println(s"CometExecRule:\nOLD PLAN:\n$plan\nNEW PLAN:\n$newPlan")
+        // scalastyle:on println
 
         // if the plan cannot be run fully natively then explain why (when appropriate
         // config is enabled)
