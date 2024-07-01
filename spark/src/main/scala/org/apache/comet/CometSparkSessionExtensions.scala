@@ -65,7 +65,7 @@ class CometSparkSessionExtensions
     extensions.injectColumnar { session => CometScanColumnar(session) }
     extensions.injectColumnar { session => CometExecColumnar(session) }
     extensions.injectQueryStagePrepRule { session => CometScanRule(session) }
-    extensions.injectQueryStagePrepRule { session => CometExecRule(session) }
+    extensions.injectQueryStagePrepRule { session => CometQueryStagePrepRule(session) }
   }
 
   case class CometScanColumnar(session: SparkSession) extends ColumnarRule {
@@ -73,7 +73,7 @@ class CometSparkSessionExtensions
   }
 
   case class CometExecColumnar(session: SparkSession) extends ColumnarRule {
-    override def preColumnarTransitions: Rule[SparkPlan] = CometExecRule(session)
+    override def preColumnarTransitions: Rule[SparkPlan] = CometPreColumnarRule(session)
 
     override def postColumnarTransitions: Rule[SparkPlan] =
       EliminateRedundantTransitions(session)
@@ -189,6 +189,29 @@ class CometSparkSessionExtensions
             scanExec
         }
       }
+    }
+  }
+
+  /**
+   * CometQueryStagePrepRule gets called from AQE for the whole plan multiple times as the plan is
+   * re-optimized after query stages complete. This is where we translate Spark operators and
+   * expressions into Comet/DataFusion native versions.
+   */
+  case class CometQueryStagePrepRule(session: SparkSession) extends Rule[SparkPlan] {
+    def apply(plan: SparkPlan): SparkPlan = {
+      CometExecRule(session).apply(plan)
+    }
+  }
+
+  /**
+   * CometPreColumnarRule gets called for each individual query stage as it is being prepared for
+   * execution. As the name suggests, this rule is called before any columnar transitions are
+   * inserted into the plan. We do not currently perform any further transformations in this rule
+   * because we already replaced the Spark operators and expressions in CometQueryStagePrepRule.
+   */
+  case class CometPreColumnarRule(session: SparkSession) extends Rule[SparkPlan] {
+    def apply(plan: SparkPlan): SparkPlan = {
+      plan
     }
   }
 
